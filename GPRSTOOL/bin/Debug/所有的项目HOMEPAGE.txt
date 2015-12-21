@@ -1,0 +1,34 @@
+5620
+	http://www.af1234.com/?S=240*320&M=it5620&V=S&Z=G280B
+2100
+	http://www.af1234.com/?S=128_160&M=it2100&V=S&Z=G181
+2110			
+	http://www.af1234.com/?S=128_160&M=it2110&V=S&Z=G182
+5190
+	http://www.af1234.com/?S=240_320&M=it5190&V=S&Z=G242
+5180
+	http://www.af1234.com/?S=240_320&M=it5180&V=S&Z=G240_E
+2080
+	http://www.af1234.com/?S=128_160&M=it2080&V=S&Z=G180
+
+
+另一套SVN
+
+2550 2360  同一个项目
+
+2560
+
+2570
+	
+	
+	
+http://www.af1234.com/?S=240*320&M=it5620&V=S&Z=G280B
+http://www.af1234.com/?S=128_160&M=it2100&V=S&Z=G181
+http://www.af1234.com/?S=128_160&M=it2110&V=S&Z=G182
+http://www.af1234.com/?S=240_320&M=it5190&V=S&Z=G242
+http://www.af1234.com/?S=240_320&M=it5180&V=S&Z=G240_E
+http://www.af1234.com/?S=128_160&M=it2080&V=S&Z=G180
+
+
+
+
