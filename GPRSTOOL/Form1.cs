@@ -45,6 +45,7 @@ namespace GPRSTOOL
 
         List<GPRSparam> listGprs = new List<GPRSparam>();
 
+        string pretmpmms = "mms_";//短信前缀
         private void EpplusExcel2007Read(string path)
         {
             try
@@ -54,7 +55,8 @@ namespace GPRSTOOL
                 //开始计时/*此处为要计算的运行代码
                 watch.Start();
                 //保存表头信息
-                Dictionary<int, string> dictHeader = new Dictionary<int, string>();
+                Dictionary<string,int> dictHeader = new Dictionary< string,int>();
+                List<string> listHeader = new List<string>();
                 //文件信息
                 FileInfo newFile = new FileInfo(path);
                 using (ExcelPackage package = new ExcelPackage(newFile))
@@ -83,7 +85,7 @@ namespace GPRSTOOL
                         //传每个表的类型过来
 
                         int off = 0;    //起始行偏移量
-
+                        bool isMMS = false;
                         //将每列标题添加到字典中
                         for (int i = colStart; i <= colEnd; i++)
                         {
@@ -92,28 +94,87 @@ namespace GPRSTOOL
                                 continue;
                             }
                             string titlestr = worksheet.Cells[ i , rowStart ].Value.ToString();
-                            if (titlestr == null || titlestr == "")
+                            titlestr = titlestr.Trim();
+                            if (titlestr == null || titlestr == "" )
                             {
                                 continue;
                             }
-                            dictHeader[i] = titlestr.Replace(" ", "");
+                            if (titlestr == "MMS")
+                            {
+                                isMMS = true;
+                            }
+                            if (isMMS == false)
+                            {
+                                dictHeader.Add(titlestr, i);
+                                listHeader.Add(titlestr);
+                            }
+                            else
+                            {
+                                dictHeader.Add(pretmpmms + titlestr, i);
+                                listHeader.Add(pretmpmms + titlestr);
+                            }
                         }
                         off += 1;
                         int count = 0;
+                        if (System.IO.File.Exists("test.txt"))
+                        {
+                            System.IO.File.Delete("test.txt");    
+                        }
+                        
+                        if (System.IO.File.Exists("mmstest.txt"))
+                        {
+                            System.IO.File.Delete("mmstest.txt");
+                        }
+                        
+                        //针对国家里面合并列的情况需要临时变量保存
+                        string country = "";
+                        //针对印度版本里合并列的情况需要设置一个跳过列变量
+                        int jumpcol = 0;
+                        int mmsjumpcol = 0;
                         //遍历每一列
                         for (int col = colStart + off; col <= colEnd; col++)
                         {
-                            Dictionary<int,string> dictHeadervalue = new Dictionary<int,string>();
                             count++;
+
+                            //对印度版本的网络参数增加两个临时变量,重复用|号分隔
+                            string repatemcc = "";
+                            string repatemnc = "";
+                            string mmsrepatemcc = "";
+                            string mmsrepatemnc = "";
+
+                            Dictionary<string, string> dictHeadervalue = new Dictionary<string, string>();
+                            GPRSparam gprs = new GPRSparam();
+                            GPRSparam mms = new GPRSparam();
+
+
+
+                            if (jumpcol > 0)
+                            {
+                                col += jumpcol; //跳过合并列
+                                count += jumpcol;
+                                jumpcol = 0;
+                                
+                            }
+
+                            
                             //遍历每一列的单元格
                             for (int row = rowStart; row <= rowEnd; row++)
                             {
+                                
+                                if (listHeader[row - 1] == pretmpmms + "MMS" && mmsjumpcol > 0) //为了把合并的MMS跳过
+                                {
+                                    break;
+                                }
+
                                 string text = "";
                                 //得到单元格信息
                                 ExcelRange cell = null;
                                 try
                                 {
                                     cell = worksheet.Cells[row, col];
+                                    text = GetMegerValue(worksheet, row, col);
+
+
                                 }
                                 catch (Exception err)
                                 {
@@ -121,25 +182,152 @@ namespace GPRSTOOL
                                     Console.WriteLine("" + err.Message);
                                     Lv.Log.Write("提取单元数据出错　row" + col.ToString() + " col" + row.ToString() + err.Message, Lv.Log.MessageType.Error);
                                 }
-                                if (cell.Value == null)
+
+                                if (listHeader[row - 1] == "MCC")
                                 {
-                                    text = "";
-                                }else
-                                { 
-                                    text = cell.RichText.Text;
+                                    //mcc
+                                    //判断上一行是否合并,如果合并合并了多少行.
+                                    string range = worksheet.MergedCells[row - 1, col];
+
+                                    if (range != null && range.Contains(":"))    //说明合并了多列
+                                    {
+                                        jumpcol = GetMegerColSum(range);
+                                    }
+                                    if (jumpcol > 0)
+                                    {
+                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
+                                        //mcc
+                                        repatemcc = text;
+                                        text = "";
+                                    }
+                                    else
+                                    {
+                                        string tmpmncvalue = GetMegerValue(worksheet, row + 1, col); //如果mnc里面包含多个，那么这个时候需要记录mcc这样才能进行重复计算
+                                        if (tmpmncvalue.Contains(",") == true)
+                                        {
+                                            repatemcc = text;
+                                        }
+                                        //其他情况不处理
+                                    }
                                 }
+                                if (listHeader[row - 1] == "MNC")
+                                {
+                                    if (jumpcol > 0)
+                                    {
+                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
+                                        repatemnc = text;
+                                        text = "";
+                                    }
+                                    else
+                                    {
+                                        if (text.Contains(",") == true)
+                                        {
+                                            repatemnc = text;
+                                            text = "";
+                                        }
+                                        //其他情况不处理
+                                    }
+                                    
+                                }
+                                if (listHeader[row - 1] == pretmpmms + "MCC")
+                                {
+                                    //mcc
+                                    //判断上一行是否合并,如果合并合并了多少行.
+                                    string range = worksheet.MergedCells[row - 1, col];
+
+                                    if (range != null && range.Contains(":"))    //说明合并了多列
+                                    {
+                                        mmsjumpcol = GetMegerColSum(range);
+                                    }
+                                    if (mmsjumpcol > 0)
+                                    {
+                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
+                                        mmsrepatemcc = text;
+                                        text = "";
+                                        if (mmsjumpcol == jumpcol)
+                                        {
+                                            mmsjumpcol = 0;
+                                        }
+                                        else
+                                        {
+                                            mmsjumpcol += 1;        //本次加1，为了第二列的时候能跳过
+                                        }
+                                    }
+                                    else
+                                    {
+                                        string tmpmncvalue = GetMegerValue(worksheet, row + 1, col); //如果mnc里面包含多个，那么这个时候需要记录mcc这样才能进行重复计算
+                                        if (tmpmncvalue.Contains(",") == true)
+                                        {
+                                            mmsrepatemcc = text;
+                                        }
+                                        //其他情况不处理
+                                    }
+                                }
+                                if (listHeader[row - 1] == pretmpmms + "MNC")
+                                {
+                                    if (jumpcol > 0 || mmsjumpcol >0)
+                                    {
+                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
+                                        mmsrepatemnc = text;
+                                        text = "";
+                                    }
+                                    else
+                                    {
+                                        if (text.Contains(",") == true)
+                                        {
+                                            mmsrepatemnc = text;
+                                            text = "";
+                                        }
+                                        //其他情况不处理
+                                    }
+                                }
+                                //end 多mms多mnc
                                 // dictHeadervalue[col] = text;         //标题，值 不用标题了可以做判断
                                 //对每一个网络参数进行修正操作
-                                if (row>=34)
+                                if (listHeader[row - 1].Contains("注：") == true)
                                 {
+                                    //说明到底了
                                     break;
                                 }
-                                text = revisedValue(text, dictHeader[row]);
-                                dictHeadervalue.Add(row,text);
+                                text = revisedValue(text, listHeader[row - 1]);  //数据检查
+
+                                dictHeadervalue.Add(listHeader[row - 1], text);
+
                             }
-                            
-                            //保存 当前列的gprs mms
-                            ConvertGprs(dictHeadervalue,dictHeader);
+                            if (mmsjumpcol > 0)
+                            {
+                                mmsjumpcol--;
+                            }
+                            //前面对列的记录 同时还要记算出他合并了多少行，然后对其他行进行数据提取操作
+                            //从目前就只有mcc和mnc有需要提取，只对这两个进行操作
+
+
+                            foreach (var item in dictHeadervalue)
+                            {
+                                setValue(ref gprs, ref mms, item.Key, item.Value);
+                            }
+
+                            //印度多mcc mnc进入
+                            if (repatemcc != "" || repatemnc != "")
+                            {
+                                //SaveRecode(repatemcc, repatemnc, mmsrepatemcc, mmsrepatemnc, gprs, mms);
+                                SaveRecodeGprs(repatemcc, repatemnc, gprs);
+                            }
+                            else
+                            {
+                               GprsAdd(gprs);
+                            }
+                            if ( mmsrepatemcc != "" || mmsrepatemnc != "")
+                            {
+                                SaveRecodeGprs(mmsrepatemcc, mmsrepatemnc, mms);
+                            }
+                            else
+                            {
+                                //保存 当前列的gprs mms
+                                //ConvertGprs(dictHeadervalue,dictHeader);
+                              
+                                GprsAdd(mms);
+                            }
                         }
                         Console.WriteLine("总处理列数:" + count);
                         Lv.Log.Write("总处理行数: " + count, Lv.Log.MessageType.Info);
@@ -149,11 +337,355 @@ namespace GPRSTOOL
             catch (Exception err)
             {
                 Console.WriteLine("加载excel出错了　" + err.Message);
+                MessageBox.Show("加载excel出错了　" + err.Message+" 如找不到原因，可致邮452113521@qq.com");
                 Lv.Log.Write("加载excel出错了　 " + err.Message, Lv.Log.MessageType.Error);
+                return;
+            }
+
+            MessageBox.Show("已正常打开网络参数表");
+        }
+        /// <summary>
+        /// 对保存的GPRS进行判断，然后保存
+        /// </summary>
+        /// <param name="gprs"></param>
+        private void GprsAdd(GPRSparam gprs)
+        {
+            //throw new NotImplementedException();
+            if (gprs.Mcc != "" && gprs.Mnc != "")
+            {
+                listGprs.Add(gprs);   
+                
+                //对比检查数据
+                if (gprs.Type == GPRSTYPE.GPRS)
+                {
+                    string content = gprs.Mnc + "\r\n";
+                    System.IO.File.AppendAllText("test.txt", content);
+                }
+
+                //对比检查数据
+                if (gprs.Type == GPRSTYPE.MMS)
+                {
+                    string content = gprs.Mnc + "\r\n";
+                    System.IO.File.AppendAllText("mmstest.txt", content);
+                }
+
+            }
+            
+            
+        }
+
+        private string GetMccMncValue(ExcelWorksheet worksheet, int row, int col, string text,int jumpcol)
+        {
+            //throw new NotImplementedException();
+            string tmprange = worksheet.MergedCells[row, col]; // 用来判断mcc是否也进行了合并
+            if (tmprange != null && tmprange.Contains(":") == true)
+            {
+                List<string> listtext = new List<string>();//记录上一个列表里的mcc 
+                listtext.Add(text);
+                for (int i = 1; i < jumpcol + 1; i++)
+                {
+                    string tmptext = GetMegerValue(worksheet, row, col + i);
+                    if (tmptext != listtext[i - 1])
+                    {
+                        text += "|" + tmptext;
+                    }
+                }
+            }
+            else
+            {
+                //没有合并的情况下
+                for (int i = 1; i < jumpcol + 1; i++)
+                {
+                    text += "|" + GetMegerValue(worksheet, row, col + i);
+                }
+            }
+            return text;
+        }
+
+        private void SaveRecodeGprs(string repatemcc, string repatemnc, GPRSparam gprs)
+        {
+            //throw new NotImplementedException();
+            string[] mccsplit = repatemcc.Split('|');
+            string[] mncsplit = repatemnc.Split('|');
+            for (int i = 0; i < mccsplit.Length; i++)
+            {
+                string[] mncsig = mncsplit[i].Split(',');
+                for (int j = 0; j < mncsig.Length; j++)
+                {
+                    GPRSparam tmpgprs = (GPRSparam)gprs.Clone();
+                    tmpgprs.Mcc = mccsplit[i];
+                    tmpgprs.Mnc = mncsig[j];
+                    //listGprs.Add(tmpgprs);
+                    GprsAdd(tmpgprs);
+                }
             }
         }
 
-        private void ConvertGprs(Dictionary<int, string> dictHeadervalue, Dictionary<int, string> dictHeader)
+        //计算出合并了多行列
+        private int GetMegerColSum(string range)
+        {
+            //方法1，但是这种方法不精准
+/*
+            //throw new NotImplementedException(); 返回异常
+            string[] strsplit = range.Split(':');
+            byte[] arry1 =  System.Text.ASCIIEncoding.ASCII.GetBytes(strsplit[0]);
+            byte[] arry2 = System.Text.ASCIIEncoding.ASCII.GetBytes(strsplit[1]);
+
+            int jump = sumArray(arry2) - sumArray(arry1);
+            return jump;
+ * 
+ * 
+*/
+            //方法二 计算出行的值，然后进行减运算就得到结果了
+            string[] strsplit = range.Split(':');
+            string col1 = System.Text.RegularExpressions.Regex.Match(strsplit[0], "(?<col>[A-Z]*)").Result("$1").ToString();
+            int col1hao = convertR1c1(col1);
+            string col2 = System.Text.RegularExpressions.Regex.Match(strsplit[1], "(?<col>[A-Z]*)").Result("$1").ToString();
+            int col2hao = convertR1c1(col2);
+            return System.Math.Abs( col2hao - col1hao);
+        }
+
+        /// <summary>
+        /// 把ABC转换成行号
+        /// </summary>
+        /// <param name="col1"></param>
+        /// <returns></returns>
+        private int convertR1c1(string col1)
+        {
+            int sum = 0;
+            //throw new NotImplementedException();
+            byte[] arry1 = System.Text.ASCIIEncoding.ASCII.GetBytes(col1);
+            int local = 0;
+            for (int i = arry1.Length-1; i >= 0; i--)
+            {
+                if (local == 0)
+                {
+                    sum += (arry1[i] - 64);
+                }
+                else
+                {
+                    double tmppow = System.Math.Pow(26, local);
+                    sum += (int)(tmppow * (double)(arry1[i] - 64));
+                }
+                local++;
+            }
+            return sum;
+        }
+
+        private int sumArray(byte[] arry1)
+        {
+            int sum = 0;
+            for (int i = 0; i < arry1.Length; i++)
+            {
+                sum += arry1[i];
+            }
+            return sum;
+        }
+
+        private void setValue(ref GPRSparam gprs, ref GPRSparam mms, string title, string text)
+        {
+            switch (title)
+            {
+                case "Tecno / itel":
+                    gprs.Country = text;
+                    mms.Country = text;
+                    break;
+                case "GPRS/ EDGE/Internet": 
+                    gprs.Type = GPRSTYPE.GPRS;
+                    gprs.Typestr = "gprs";
+                    break;
+                case "mvno_type":
+                    gprs.Mvno_type = text;
+                    mms.Mvno_type = text;
+                    break;
+                case "mvno_match_data":
+                    gprs.Mvno_match_data = text;
+                    mms.Mvno_match_data = text;
+                    break;
+                case "insert SIM  idle display":
+                    gprs.Idledisplay = text;
+                    mms.Idledisplay = text;
+                    break;
+                case "Operator Name":
+                    gprs.OperatorName = text;
+                    mms.OperatorName = text;
+                    break;
+                case "NAME":
+                    gprs.Name = text;
+                    break;
+                case "Homepage":
+                    gprs.Homepage = text;    
+                    break;
+                case "APN":
+                    gprs.Apn = text;
+                    break;
+                case "Proxy Enable":
+                    gprs.ProxyEnable = text;
+                    break;
+                case "PROXY":
+                    gprs.Proxy = text;
+                    break;
+                case "PORT":
+                    text = CheckPort(text);
+                    gprs.Port = text;
+                    break;
+                case "USERNAME":
+                    gprs.Username = text;
+                    break;
+                case "PASSWORD":
+                    gprs.Password = text;
+                    break;
+                case "SERVER":
+                    gprs.Server = text;
+                    break;
+                case "MMSC":
+                    gprs.Mmsc = text;
+                    break;
+                case "MMSPROXY":
+                    gprs.Mmsproxy = text;
+                    break;
+                case "MMS PORT":
+                    gprs.Mmsport = text;
+                    break;
+                case "MCC":
+                    gprs.Mcc = text;
+                    break;
+                case "MNC":
+                    if (text.Length < 2)
+                    {
+                        text = "0" + text;
+                    }
+                    gprs.Mnc = text;
+                    break;
+                case "AUTHENTICATION TYPE":
+                    text = CheckAuthType(text);
+                    gprs.Authtype = text;
+                    break;
+                case "APN TYPE":
+                    gprs.Apntype = text;
+                    break;
+                case "mms_MMS":
+                    mms.Type = GPRSTYPE.MMS;
+                    mms.Typestr = "mms";
+                    break;
+                case "mms_Operator Name":
+                    mms.OperatorName = text;
+                    break;
+                case "mms_NAME":
+                    mms.Name = text;
+                    break;
+                case "mms_APN":
+                    mms.Apn = text;
+                    break;
+                case "mms_Proxy Enable":
+                    mms.ProxyEnable = text;
+                    break;
+                case "mms_PROXY":
+                    mms.Proxy = text;
+                    break;
+                case "mms_PORT":
+                    text = CheckPort(text);
+                    mms.Port = text;
+                    break;
+                case "mms_USERNAME":
+                    mms.Username = text;
+                    break;
+                case "mms_PASSWORD":
+                    mms.Password = text;
+                    break;
+                case "mms_SERVER":
+                    mms.Server = text;
+                    break;
+                case "mms_MMSC":
+                    mms.Mmsc = text;
+                    break;
+                case "mms_MMS PROXY":
+                    mms.Mmsproxy = text;
+                    break;
+                case "mms_MMS PORT":
+                    text = CheckPort(text);
+                    mms.Mmsport = text;
+                    break;
+                case "mms_MCC":
+                    mms.Mcc = text;
+                    break;
+                case "mms_MNC":
+                    if (text.Length < 2)
+                    {
+                        text = "0" + text;
+                    }
+                    mms.Mnc = text;
+                    break;
+                case "mms_AUTHENTICATION TYPE":
+                    mms.Authtype = text;
+                    break;
+                case "mms_APN TYPE":
+                    mms.Apntype = text;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        private string CheckAuthType(string text)
+        {
+            //throw new NotImplementedException();
+            if (text == "Normal")   //讨论最后结果，是随便选哪种都行
+            {
+                text = "PAP";
+            }
+            else if (text == "Secured") //讨论最后结果，是随便选哪种都行
+            {
+                text = "PAP";
+            }
+            else if (text.Contains("PAP"))
+            {
+                text = "PAP";
+            }
+            else if (text =="CHAP")
+            {
+                text = "CHAP";
+            }
+            else if (text.Contains("Not"))
+            {
+                text = "PAP";
+            }
+            else if (text.Contains("None"))
+            {
+                text = "PAP";
+            }
+            else
+            {
+                text = "PAP";
+            }
+            return text;
+        }
+
+        private string CheckPort(string text)
+        {
+            if (text.Contains("or"))
+            {
+                text = System.Text.RegularExpressions.Regex.Match(text, "(?<col>[0-9]*)").Result("$1").ToString();
+            }
+            return text;
+        }
+        public static string GetMegerValue(ExcelWorksheet wSheet, int row, int column)
+        {
+            string range = wSheet.MergedCells[row, column];
+            if (range == null)
+                if (wSheet.Cells[row, column].Value != null)
+                    return wSheet.Cells[row, column].Value.ToString();
+                else
+                    return "";
+            object value =
+                wSheet.Cells[(new ExcelAddress(range)).Start.Row, (new ExcelAddress(range)).Start.Column].Value;
+            if (value != null)
+                return value.ToString();
+            else
+                return "";
+        }
+        private void ConvertGprs(Dictionary<int, string> dictHeadervalue, Dictionary<string, int> dictHeader)
         {
             //gprs
             GPRSparam gprs = new GPRSparam();
@@ -205,6 +737,59 @@ namespace GPRSTOOL
             listGprs.Add(mms);
         }
 
+
+        private void ConvertAPNGprs(Dictionary<int, string> dictHeadervalue, Dictionary<int, string> dictHeader)
+        {
+            //gprs
+            GPRSparam gprs = new GPRSparam();
+            gprs.Type = GPRSTYPE.GPRS;
+            gprs.Typestr = "gprs";
+            gprs.Country = GetValue(dictHeadervalue, 1);
+            gprs.Mvno_type = GetValue(dictHeadervalue, 3);
+            gprs.Mvno_match_data = GetValue(dictHeadervalue, 4);
+            gprs.Idledisplay = GetValue(dictHeadervalue, 5);
+            gprs.Name = GetValue(dictHeadervalue, 6);
+            gprs.Apn = GetValue(dictHeadervalue, 7);
+            gprs.Proxy = GetValue(dictHeadervalue, 8);
+            gprs.Port = GetValue(dictHeadervalue, 9);
+            gprs.Username = GetValue(dictHeadervalue, 10);
+            gprs.Password = GetValue(dictHeadervalue, 11);
+            gprs.Server = GetValue(dictHeadervalue, 12);
+            gprs.Mmsc = GetValue(dictHeadervalue, 13);
+            gprs.Mmsproxy = GetValue(dictHeadervalue, 14);
+            gprs.Mmsport = GetValue(dictHeadervalue, 15);
+            gprs.Mcc = GetValue(dictHeadervalue, 16);
+            gprs.Mnc = GetValue(dictHeadervalue, 17);
+            gprs.Authtype = GetValue(dictHeadervalue, 18);
+            gprs.Apntype = GetValue(dictHeadervalue, 19);
+
+            listGprs.Add(gprs);
+            //mms
+            GPRSparam mms = new GPRSparam();
+            mms.Typestr = "mms";
+            mms.Type = GPRSTYPE.MMS;
+            mms.Country = GetValue(dictHeadervalue, 1);
+            mms.Mvno_type = GetValue(dictHeadervalue, 3);
+            mms.Mvno_match_data = GetValue(dictHeadervalue, 4);
+            mms.Idledisplay = GetValue(dictHeadervalue, 5);
+            mms.Name = GetValue(dictHeadervalue, 21);
+            mms.Apn = GetValue(dictHeadervalue, 22);
+            mms.Proxy = GetValue(dictHeadervalue, 23);
+            mms.Port = GetValue(dictHeadervalue, 24);
+            mms.Username = GetValue(dictHeadervalue, 25);
+            mms.Password = GetValue(dictHeadervalue, 26);
+            mms.Server = GetValue(dictHeadervalue, 27);
+            mms.Mmsc = GetValue(dictHeadervalue, 28);
+            mms.Mmsproxy = GetValue(dictHeadervalue, 29);
+            mms.Mmsport = GetValue(dictHeadervalue, 30);
+            mms.Mcc = GetValue(dictHeadervalue, 31);
+            mms.Mnc = GetValue(dictHeadervalue, 32);
+            mms.Authtype = GetValue(dictHeadervalue, 33);
+            mms.Apntype = GetValue(dictHeadervalue, 34);
+
+            listGprs.Add(mms);
+        }
+
         private string GetValue(Dictionary<int, string> dictHeadervalue, int index)
         {
             if (dictHeadervalue.ContainsKey(index))
@@ -232,96 +817,13 @@ namespace GPRSTOOL
 
 
         /// <summary>
-        /// 修正值
+        /// 修正值 对各种数据的验证，如果不对提示异常退出
         /// </summary>
         /// <param name="text"></param>
         /// <param name="p"></param>
         /// <returns></returns>
         private string revisedValue(string text, string title)
         {
-            switch (title)
-            {
-                case "Tecno/itel": break;
-                case "GPRS/EDGE/Internet": break;
-                case "mvno_type": break;
-                case "mvno_match_data": break;
-                case "insertSIMidledisplay": break;
-                case "NAME": break;
-                case "APN": break;
-                case "PROXY":
-                    if (text == "")
-                    {
-                        text = "0.0.0.0";
-                    }
-                    System.Text.RegularExpressions.Match mc = System.Text.RegularExpressions.Regex.Match(text, @"[\d]{1,3}.[\d]{1,3}.[\d]{1,3}.[\d]{1,3}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    if (mc.Success == false)
-                    {
-                        MessageBox.Show("不是ip地址" + text);
-                    }
-                    break;
-                case "PORT":
-                    if (text == "")
-                    {
-                        text = "0";
-                    }
-                    break;
-                case "USERNAME": break;
-                case "PASSWORD": break;
-                case "SERVER": break;
-                case "MMSC":
-                    //homepage
-                    break;
-                case "MMSPROXY": 
-                    if (text == "")
-                    {
-                        text = "0.0.0.0";
-                    }
-                    System.Text.RegularExpressions.Match mmsmc = System.Text.RegularExpressions.Regex.Match(text, @"[\d]{1,3}.[\d]{1,3}.[\d]{1,3}.[\d]{1,3}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    if (mmsmc.Success == false)
-                    {
-                        MessageBox.Show("mms不是ip地址" + text);
-                    }
-                    break;
-                case "MMSPORT":
-                    if (text == "")
-                    {
-                        text = "0";
-                    }
-                    break;
-                case "MCC": break;
-                case "MNC": break;
-                case "AUTHENTICATIONTYPE":
-                    string tmptext = text.ToLower();
-                    if (tmptext == "")
-                    {
-                        text = "0";
-                    }
-                    else if (tmptext.Contains("none") == true)
-                    {
-                        text = "0";
-                    }
-                    else if (tmptext.Contains("not set") == true)
-                    {
-                        text = "0";
-                    }
-                    else if (tmptext.Contains("pap") == true)
-                    {
-                        text = "0";
-                    }
-                    else if (tmptext.Contains("chap") == true)
-                    {
-                        text = "1";
-                    }
-                    else
-                    {
-                        text = "1";
-                    }
-                    break;
-                case "APNTYPE": break;
-                case "MMS": break;
-                default:
-                    break;
-            }
 
             Dictionary<string,string> listfilter = new Dictionary<string,string>();
             listfilter.Add("For Browser only","");
@@ -435,10 +937,11 @@ namespace GPRSTOOL
                     {
                         IRow DataRow = sheet.CreateRow(iRowIndex);
                         List<string> itemValues = new List<string>();
-                        if (item.Mcc == "" || item.Mnc == "" || item.Name == "")
+                        if (item.Mcc == "" || item.Mnc == "" )
                         {
                             continue;
                         }
+
                         itemValues.Add(item.Name);
                         itemValues.Add(item.Mcc);
                         itemValues.Add(item.Mnc);
@@ -446,35 +949,18 @@ namespace GPRSTOOL
                         itemValues.Add(item.Apn);
                         itemValues.Add("1");
                         itemValues.Add("0");
-                        itemValues.Add(item.Type == GPRSTYPE.GPRS ? item.Proxy : item.Mmsproxy);        //短信的和gprs的不一样
-                        itemValues.Add(item.Type == GPRSTYPE.GPRS ? item.Port : item.Mmsport);         //短信的和gprs的不一样
+                        string text = OutExcelSetProxyValue(item);
+                        itemValues.Add(text);        //短信的和gprs的不一样
+                        text = OutExcelSetPortValue(item);
+                        itemValues.Add(text);         //短信的和gprs的不一样
                         itemValues.Add(item.Username);
                         itemValues.Add(item.Password);
                         itemValues.Add("0.0.0.0");
                         itemValues.Add("0.0.0.0");
-                        if (item.Type == GPRSTYPE.GPRS)
-                        {
-                            if (item.Server != "")
-                            {
-                                itemValues.Add(item.Server);      //homepage
-                            }
-                            else
-                            {
-                                itemValues.Add(url);
-                            }
-                        }
-                        else
-                        {
-                            if (item.Mmsc != "")
-                            {
-                                itemValues.Add(item.Mmsc);      //homepage
-                            }
-                            else
-                            {
-                                itemValues.Add(url);
-                            }
-                        }
-                        itemValues.Add(item.Authtype);    //#PAP 0 CHAP 1  这个更据表上来
+                        text = OutExcelSetHomePageValue(item,url);
+                        itemValues.Add(text);
+                        text = OutExcelSetAuthTypeValue(item);
+                        itemValues.Add(text);    //#PAP 0 CHAP 1  这个更据表上来
                         itemValues.Add("0");
 
                         foreach (string itemvalues in itemValues)
@@ -525,6 +1011,109 @@ namespace GPRSTOOL
                 }
                 finally { }
             }
+        }
+
+        private string OutExcelSetAuthTypeValue(GPRSparam item)
+        {
+            //throw new NotImplementedException();
+            //#PAP 0 CHAP 1  这个更据表上来
+            string text = "0";
+            switch (item.Authtype)
+            {
+                case "CHAP":
+                    text = "1";
+                    break;
+                default:
+                    break;
+            }
+            return text;
+        }
+
+        private string OutExcelSetHomePageValue(GPRSparam item,string url)
+        {
+            //throw new NotImplementedException();
+            string text = "";
+            if (item.Type == GPRSTYPE.GPRS)
+            {
+                if (item.Homepage != "")
+                {
+                    text = item.Homepage;
+                }
+                else if (item.Server != "")
+                {
+                    text = item.Server;      //homepage
+                }
+                else
+                {
+                    text = url;
+                }
+            }
+            else if (item.Type == GPRSTYPE.MMS)
+            {
+                if (item.Mmsc != "")
+                {
+                    text = item.Mmsc;      //homepage
+                }
+                else
+                {
+                     text = url;
+                }
+            }
+            return text;
+        }
+
+        private string OutExcelSetPortValue(GPRSparam item)
+        {
+            string text = "";
+            if (item.Type == GPRSTYPE.GPRS)
+            {
+                text = item.Port;
+                if (text == "")
+                {
+                    text = item.Mmsport;
+                }
+            }
+            else if (item.Type == GPRSTYPE.MMS)
+            {
+                text = item.Mmsport;
+                if (text == "")
+                {
+                    text = item.Port;
+                }
+            }
+            else
+            {
+
+            }
+            return text;
+        }
+
+        private string OutExcelSetProxyValue(GPRSparam item)
+        {
+            string text = "";
+            //throw new NotImplementedException();
+            if (item.Type == GPRSTYPE.GPRS)
+            {
+                text = item.Proxy;
+                if (text == "")
+                {
+                    text = item.Mmsproxy;
+                }
+            }
+            else if (item.Type == GPRSTYPE.MMS)
+            {
+                text = item.Mmsproxy; 
+                if (text == "")
+                {
+                    text = item.Proxy;
+                }
+            }
+            else
+            { 
+
+            }
+            //itemValues.Add(item.Type == GPRSTYPE.GPRS ? item.Proxy : item.Mmsproxy);        //短信的和gprs的不一样
+            return text;
         }
 
         /// <summary>
@@ -945,6 +1534,10 @@ namespace GPRSTOOL
                 {
                     continue;
                 }
+                if (checkApnMncMccSmart() == false)
+                {
+                    continue;
+                }
                 sb.AppendLine("    <apn carrier=\"" + item.Name + "\"");
                 sb.AppendLine("        mcc=\"" + item.Mcc + "\"");
                 sb.AppendLine("        mnc=\"" + item.Mnc + "\"");
@@ -963,11 +1556,150 @@ namespace GPRSTOOL
             System.IO.File.AppendAllText(path, sb.ToString());
         }
 
+        private bool checkApnMncMccSmart()
+        {
+
+            return true;
+        }
+
         private void loadFixTxt(string path)
         {
             StringBuilder cotent = new StringBuilder();
             cotent.Append(System.IO.File.ReadAllText("head.txt"));
             System.IO.File.AppendAllText(path, cotent.ToString());
+        }
+
+        private void btnAPNImport_Click(object sender, EventArgs e)
+        {
+           
+            listGprs = new List<GPRSparam>();
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "*.*|*.*";
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                txtAddress.Text = ofd.FileName;
+                Thread th = new Thread(new ParameterizedThreadStart(importAPNExcel));
+                th.Start(ofd.FileName);
+            }
+        }
+
+        private void importAPNExcel(object obj)
+        {
+            string filename = (string)obj;
+            EpplusAPNExcel2007Read(filename);
+        }
+
+        private void EpplusAPNExcel2007Read(string filename)
+        {
+            try
+            {
+                //实例化一个计时器
+                Stopwatch watch = new Stopwatch();
+                //开始计时/*此处为要计算的运行代码
+                watch.Start();
+                //保存表头信息
+                Dictionary<int, string> dictHeader = new Dictionary<int, string>();
+                //文件信息
+                FileInfo newFile = new FileInfo(filename);
+                using (ExcelPackage package = new ExcelPackage(newFile))
+                {
+                    string time = watch.ElapsedMilliseconds.ToString();
+                    Console.WriteLine("加载完文件时间:" + time);
+                    Lv.Log.Write("加载完文件时间: " + time, Lv.Log.MessageType.Info);
+
+                    int vSheetCount = package.Workbook.Worksheets.Count; //获取总Sheet页
+                    int page = 1;
+                    for (int pagei = 1; pagei <= page; pagei++)
+                    {
+                        ExcelWorksheet worksheet = package.Workbook.Worksheets[2];//选定 指定页
+                        time = watch.ElapsedMilliseconds.ToString();
+                        Console.WriteLine("到打开表时间:" + time);
+                        Lv.Log.Write("到打开表时间: " + time, Lv.Log.MessageType.Info);
+                        watch.Stop();//结束计时
+
+                        int colStart = worksheet.Dimension.Start.Column;//工作区开始列
+                        int colEnd = worksheet.Dimension.End.Column;    //工作区结束列
+                        int rowStart = worksheet.Dimension.Start.Row;   //工作区开始行号
+                        int rowEnd = worksheet.Dimension.End.Row;       //工作区结束行号
+                        //现在用不到，以后用得到
+
+                        //1　每个表的样式都不一样，如果统一起来处理的话不好处理，怎么处理呢？
+                        //传每个表的类型过来
+
+                        int off = 0;    //起始行偏移量
+
+                        //将每列标题添加到字典中
+                        for (int i = rowStart; i <= rowEnd; i++)
+                        {
+                            if (worksheet.Cells[i, colStart].Value == null)
+                            {
+                                continue;
+                            }
+                            string titlestr = worksheet.Cells[i, colStart].Value.ToString();
+                            if (titlestr == null || titlestr == "")
+                            {
+                                continue;
+                            }
+                            dictHeader[i] = titlestr.Replace(" ", "");
+                        }
+                        off += 1;
+                        int count = 0;
+                        //遍历每一列
+                        for (int row111 = rowStart + off; row111 <= rowEnd; row111++)
+                        {
+                            Dictionary<int, string> dictHeadervalue = new Dictionary<int, string>();
+                            count++;
+                            //遍历每一列的单元格
+                            for (int col = colStart; col <= colEnd; col++)
+                            {
+                                string text = "";
+                                //得到单元格信息
+                                ExcelRange cell = null;
+                                try
+                                {
+                                    cell = worksheet.Cells[col, row111];
+                                }
+                                catch (Exception err)
+                                {
+                                    text = "";
+                                    Console.WriteLine("" + err.Message);
+                                    Lv.Log.Write("提取单元数据出错　row" + row111.ToString() + " col" + col.ToString() + err.Message, Lv.Log.MessageType.Error);
+                                }
+                                if (cell.Value == null)
+                                {
+                                    text = "";
+                                }
+                                else
+                                {
+                                    text = cell.RichText.Text;
+                                }
+                                // dictHeadervalue[col] = text;         //标题，值 不用标题了可以做判断
+                                //对每一个网络参数进行修正操作
+                                if (col >= 34)
+                                {
+                                    break;
+                                }
+                                text = revisedValue(text, dictHeader[col]);
+                                dictHeadervalue.Add(col, text);
+                            }
+
+                            //保存 当前列的gprs mms
+                            ConvertAPNGprs(dictHeadervalue, dictHeader);
+                        }
+                        Console.WriteLine("总处理列数:" + count);
+                        Lv.Log.Write("总处理行数: " + count, Lv.Log.MessageType.Info);
+                    }
+                }
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine("加载excel出错了　" + err.Message);
+                MessageBox.Show("加载excel出错了　" + err.Message + " 如找不到原因，可致邮452113521@qq.com");
+                Lv.Log.Write("加载excel出错了　 " + err.Message, Lv.Log.MessageType.Error);
+                return;
+            }
+
+            MessageBox.Show("已正常打开网络参数表");
         }
 
 

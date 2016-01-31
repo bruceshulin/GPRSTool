@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.btnImportExcel = new System.Windows.Forms.Button();
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
@@ -38,8 +39,8 @@
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.tabPage2 = new System.Windows.Forms.TabPage();
-            this.button1 = new System.Windows.Forms.Button();
             this.label4 = new System.Windows.Forms.Label();
+            this.button1 = new System.Windows.Forms.Button();
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.tabPage2.SuspendLayout();
@@ -61,7 +62,7 @@
             this.textBox1.Multiline = true;
             this.textBox1.Name = "textBox1";
             this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.textBox1.Size = new System.Drawing.Size(350, 133);
+            this.textBox1.Size = new System.Drawing.Size(350, 140);
             this.textBox1.TabIndex = 1;
             // 
             // label1
@@ -84,7 +85,7 @@
             // 
             // btnOutPutExcel
             // 
-            this.btnOutPutExcel.Location = new System.Drawing.Point(255, 161);
+            this.btnOutPutExcel.Location = new System.Drawing.Point(258, 168);
             this.btnOutPutExcel.Name = "btnOutPutExcel";
             this.btnOutPutExcel.Size = new System.Drawing.Size(98, 36);
             this.btnOutPutExcel.TabIndex = 4;
@@ -95,7 +96,7 @@
             // label3
             // 
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(6, 161);
+            this.label3.Location = new System.Drawing.Point(9, 168);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(167, 24);
             this.label3.TabIndex = 2;
@@ -105,7 +106,7 @@
             // 
             this.txtAddress.Location = new System.Drawing.Point(188, 20);
             this.txtAddress.Name = "txtAddress";
-            this.txtAddress.Size = new System.Drawing.Size(228, 21);
+            this.txtAddress.Size = new System.Drawing.Size(214, 21);
             this.txtAddress.TabIndex = 5;
             // 
             // tabControl1
@@ -139,10 +140,19 @@
             this.tabPage2.Location = new System.Drawing.Point(4, 22);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(406, 221);
+            this.tabPage2.Size = new System.Drawing.Size(406, 164);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "智能机网络参数导出";
             this.tabPage2.UseVisualStyleBackColor = true;
+            // 
+            // label4
+            // 
+            this.label4.AutoSize = true;
+            this.label4.Location = new System.Drawing.Point(76, 73);
+            this.label4.Name = "label4";
+            this.label4.Size = new System.Drawing.Size(89, 12);
+            this.label4.TabIndex = 1;
+            this.label4.Text = "正在测试开发中";
             // 
             // button1
             // 
@@ -154,15 +164,6 @@
             this.button1.UseVisualStyleBackColor = true;
             this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
-            // label4
-            // 
-            this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(76, 73);
-            this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(89, 12);
-            this.label4.TabIndex = 1;
-            this.label4.Text = "正在测试开发中";
-            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
@@ -172,6 +173,7 @@
             this.Controls.Add(this.txtAddress);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.btnImportExcel);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
             this.Text = "网络参数TOOL";
             this.tabControl1.ResumeLayout(false);

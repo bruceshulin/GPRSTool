@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace GPRSTOOL
 {
 
-    public class GPRSparam
+    public class GPRSparam : ICloneable 
     {
         string country = "";//国家
 
@@ -52,6 +52,21 @@ namespace GPRSTOOL
             get { return idledisplay; }
             set { idledisplay = value; }
         }
+        string operatorName = "";
+
+        public string OperatorName
+        {
+            get { return operatorName; }
+            set { operatorName = value; }
+        }
+
+        string homepage = "";
+        public string Homepage
+        {
+          get { return homepage; }
+          set { homepage = value; }
+        }
+
         string name = "";
 
         public string Name
@@ -65,6 +80,12 @@ namespace GPRSTOOL
         {
             get { return apn; }
             set { apn = value; }
+        }
+        string proxyEnable ="";
+        public string ProxyEnable
+        {
+          get { return proxyEnable; }
+          set { proxyEnable = value; }
         }
         string proxy = "";
 
@@ -150,6 +171,12 @@ namespace GPRSTOOL
             get { return apntype; }
             set { apntype = value; }
         }
+
+        public object Clone()
+        {
+            return this.MemberwiseClone(); 
+        }
+
     }
     public enum GPRSTYPE
     {
