@@ -23,16 +23,20 @@ namespace GPRSTOOL
             InitializeComponent();
         }
 
+        string SheetCount = "";
         private void btnImportExcel_Click(object sender, EventArgs e)
         {
-            listGprs = new List<GPRSparam>();
-            OpenFileDialog ofd = new OpenFileDialog();
-            ofd.Filter = "*.*|*.*";
-            if (ofd.ShowDialog() == DialogResult.OK)
+            if (txtAddress.Text != "" && System.IO.File.Exists(txtAddress.Text) == true)
             {
-                txtAddress.Text = ofd.FileName;
+                SheetCount = txtSheetPage.Text;
+                listGprs = new List<GPRSparam>();
                 Thread th = new Thread(new ParameterizedThreadStart(importExcel));
-                th.Start(ofd.FileName);
+                th.Start(txtAddress.Text);
+                this.btnImportExcel.Enabled = false;
+            }
+            else 
+            {
+                MessageBox.Show("地址有误请重新选择!");
             }
         }
 
@@ -41,6 +45,10 @@ namespace GPRSTOOL
         {
             string filename = (string)obj;
             EpplusExcel2007Read(filename);
+            this.Invoke((EventHandler)delegate
+            {
+                this.btnImportExcel.Enabled = true;
+            });
         }
 
         List<GPRSparam> listGprs = new List<GPRSparam>();
@@ -54,9 +62,7 @@ namespace GPRSTOOL
                 Stopwatch watch = new Stopwatch();
                 //开始计时/*此处为要计算的运行代码
                 watch.Start();
-                //保存表头信息
-                Dictionary<string,int> dictHeader = new Dictionary< string,int>();
-                List<string> listHeader = new List<string>();
+              
                 //文件信息
                 FileInfo newFile = new FileInfo(path);
                 using (ExcelPackage package = new ExcelPackage(newFile))
@@ -64,12 +70,28 @@ namespace GPRSTOOL
                     string time = watch.ElapsedMilliseconds.ToString();
                     Console.WriteLine("加载完文件时间:" + time);
                     Lv.Log.Write("加载完文件时间: " + time, Lv.Log.MessageType.Info);
-
-                    int vSheetCount = package.Workbook.Worksheets.Count; //获取总Sheet页
-                    int page = 1;
-                    for (int pagei = 1; pagei <= page; pagei++)
+                    List<int> listCountPage = new List<int>();
+                    SheetCount = SheetCount.Replace("，", ",");
+                    string[] sheepsplit = SheetCount.Split(',');
+                    foreach (string item in sheepsplit)
                     {
-                        ExcelWorksheet worksheet = package.Workbook.Worksheets[2];//选定 指定页
+                        int temppage=0;
+                        int.TryParse(item, out temppage);
+                        listCountPage.Add(temppage);
+                    }
+                    if (listCountPage.Count == 0)
+                    {
+                        listCountPage.Add(2);
+                    }
+                    int vSheetCount = package.Workbook.Worksheets.Count; //获取总Sheet页
+
+                    for (int pagei = 1; pagei <= vSheetCount; pagei++)
+                    {
+                        if (listCountPage.IndexOf(pagei) == -1)
+                        {
+                            continue;
+                        }
+                        ExcelWorksheet worksheet = package.Workbook.Worksheets[pagei];//选定 指定页
                         time = watch.ElapsedMilliseconds.ToString();
                         Console.WriteLine("到打开表时间:" + time);
                         Lv.Log.Write("到打开表时间: " + time, Lv.Log.MessageType.Info);
@@ -83,7 +105,9 @@ namespace GPRSTOOL
 
                         //1　每个表的样式都不一样，如果统一起来处理的话不好处理，怎么处理呢？
                         //传每个表的类型过来
-
+                        //保存表头信息
+                        Dictionary<string, int> dictHeader = new Dictionary<string, int>();
+                        List<string> listHeader = new List<string>();
                         int off = 0;    //起始行偏移量
                         bool isMMS = false;
                         //将每列标题添加到字典中
@@ -291,8 +315,16 @@ namespace GPRSTOOL
                                 }
                                 text = revisedValue(text, listHeader[row - 1]);  //数据检查
 
-                                dictHeadervalue.Add(listHeader[row - 1], text);
 
+                                if (listHeader.Count - 1 > row)
+                                {
+                                    dictHeadervalue.Add(listHeader[row - 1], text);
+                                    Console.WriteLine(listHeader[row - 1] + "     " + row.ToString());
+                                }
+                                else
+                                {
+                                    break;
+                                }
                             }
                             if (mmsjumpcol > 0)
                             {
@@ -306,7 +338,17 @@ namespace GPRSTOOL
                             {
                                 setValue(ref gprs, ref mms, item.Key, item.Value);
                             }
-
+                            //设置proxy 为空用mmsproxy
+                            if (gprs.Proxy ==  "0.0.0.0" && gprs.Mmsproxy != "0.0.0.0")
+                            {
+                                gprs.Proxy = gprs.Mmsproxy;
+                                gprs.Port = gprs.Mmsport;
+                            }
+                            //设置MMSC 为空用homepage
+                            if (gprs.Homepage == "" && gprs.Mmsc != "")
+                            {
+                                gprs.Homepage = gprs.Mmsc;
+                            }
                             //印度多mcc mnc进入
                             if (repatemcc != "" || repatemnc != "")
                             {
@@ -523,6 +565,10 @@ namespace GPRSTOOL
                     gprs.ProxyEnable = text;
                     break;
                 case "PROXY":
+                    if (text == "")
+                    {
+                        text = "0.0.0.0";
+                    }
                     gprs.Proxy = text;
                     break;
                 case "PORT":
@@ -542,9 +588,14 @@ namespace GPRSTOOL
                     gprs.Mmsc = text;
                     break;
                 case "MMSPROXY":
+                    if (text == "")
+                    {
+                        text = "0.0.0.0";
+                    }
                     gprs.Mmsproxy = text;
                     break;
                 case "MMS PORT":
+                    text = CheckPort(text);
                     gprs.Mmsport = text;
                     break;
                 case "MCC":
@@ -581,6 +632,10 @@ namespace GPRSTOOL
                     mms.ProxyEnable = text;
                     break;
                 case "mms_PROXY":
+                    if (text == "")
+                    {
+                        text = "0.0.0.0";
+                    }
                     mms.Proxy = text;
                     break;
                 case "mms_PORT":
@@ -600,6 +655,10 @@ namespace GPRSTOOL
                     mms.Mmsc = text;
                     break;
                 case "mms_MMS PROXY":
+                    if (text == "")
+                    {
+                        text = "0.0.0.0";
+                    }
                     mms.Mmsproxy = text;
                     break;
                 case "mms_MMS PORT":
@@ -667,6 +726,10 @@ namespace GPRSTOOL
             if (text.Contains("or"))
             {
                 text = System.Text.RegularExpressions.Regex.Match(text, "(?<col>[0-9]*)").Result("$1").ToString();
+            }
+            if (text == "")
+            {
+                text = "0";
             }
             return text;
         }
@@ -1523,64 +1586,118 @@ namespace GPRSTOOL
         private void button1_Click(object sender, EventArgs e)
         {
             string path = "apns-conf-transsion.xml";
-            loadFixTxt(path);
-
+            if (System.IO.File.Exists(path) == false)
+            {
+                return;
+            }
+            int count = 0;
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine("<apns version=\"8\">");
-            sb.AppendLine("<apns version=\"8\">");
             foreach (GPRSparam item in listGprs)
             {
-                if (item.Mcc == "" || item.Mnc == "" || item.Name == "")
+                GPRSparam tmpitem = item;
+                if (tmpitem.Mcc == "" || tmpitem.Mnc == "" || tmpitem.Name == "")
                 {
                     continue;
                 }
-                if (checkApnMncMccSmart() == false)
+                if (checkApnMncMccSmart(path, tmpitem) == false)
                 {
                     continue;
                 }
-                sb.AppendLine("    <apn carrier=\"" + item.Name + "\"");
-                sb.AppendLine("        mcc=\"" + item.Mcc + "\"");
-                sb.AppendLine("        mnc=\"" + item.Mnc + "\"");
-                sb.AppendLine("        apn=\"" + item.Apn + "\"");
-                sb.AppendLine("        proxy=\"" + item.Proxy + "\"");
-                sb.AppendLine("        port=\"" + item.Port + "\"");
-                sb.AppendLine("        server=\"" + item.Server + "\"");
-                sb.AppendLine("        user=\"" + item.Username + "\"");
-                sb.AppendLine("        password=\"" + item.Password + "\"");
-                sb.AppendLine("        type=\"" + item.Apntype + "\"");
-                sb.AppendLine("        authtype=\"" + item.Authtype + "\"");
+                count++;
+                checkApnName(ref tmpitem);
+                
+                sb.AppendLine("    <apn carrier=\"" + tmpitem.Name + "\"");
+                sb.AppendLine("        mcc=\"" + tmpitem.Mcc + "\"");
+                sb.AppendLine("        mnc=\"" + tmpitem.Mnc + "\"");
+                sb.AppendLine("        apn=\"" + tmpitem.Apn + "\"");
+                sb.AppendLine("        proxy=\"" + tmpitem.Proxy + "\"");
+                sb.AppendLine("        port=\"" + tmpitem.Port + "\"");
+                sb.AppendLine("        server=\"" + tmpitem.Server + "\"");
+                sb.AppendLine("        user=\"" + tmpitem.Username + "\"");
+                sb.AppendLine("        password=\"" + tmpitem.Password + "\"");
+                sb.AppendLine("        type=\"" + tmpitem.Apntype + "\"");
+                sb.AppendLine("        authtype=\"" + tmpitem.Authtype + "\"");
                 sb.AppendLine("        preload=\"1\"");
                 sb.AppendLine("    />");
             }
-            sb.AppendLine("</apns>");
-            System.IO.File.AppendAllText(path, sb.ToString());
+            if (sb.ToString() != "")
+            {
+                sb.AppendLine("</apns>");
+                //替换原始数据到另一个文件中
+                LoadApnXML(path);
+                string NewApnContent = ApnContentXML;
+                NewApnContent = NewApnContent.Replace("</apns>", sb.ToString());
+                string newPath = "apns-conf-transsionNEW.xml";
+                System.IO.File.AppendAllText(newPath, NewApnContent);
+            }
+            MessageBox.Show("程序导出结束 共导入" + count.ToString() + "条");
+           
         }
 
-        private bool checkApnMncMccSmart()
+        string SpnConf = "";
+        private void checkApnName(ref GPRSparam item)
         {
+            //throw new NotImplementedException();
+            if (System.IO.File.Exists("spn-conf.xml") == false)
+            {
+                MessageBox.Show("程序文件spn-conf.xml不全，无法正常操作。");
+                return;
+            }
+            if (SpnConf == "" )
+            {
+                SpnConf = System.IO.File.ReadAllText("spn-conf.xml");
+            }
+            string tmpmccmnc = "\"" + item.Mcc + item.Mnc + "\"";
+            System.Text.RegularExpressions.Match mc = System.Text.RegularExpressions.Regex.Match(SpnConf, "numeric="+tmpmccmnc+" spn=\"(?<spn>[\\s\\S]*?)\"/>");
+            string strName = mc.Groups["spn"].Value;
+            if (strName != "")
+            {
+                item.Name = strName;
+            }
+
+        }
+        /// <summary>
+        /// xml文件内容
+        /// </summary>
+        string ApnContentXML = "";
+        private bool LoadApnXML(string path)
+        {
+            if (ApnContentXML == "")
+            {
+                ApnContentXML = System.IO.File.ReadAllText(path);
+                if (ApnContentXML.Contains("/apns>") == false)
+                {
+
+                    if (System.IO.File.Exists("head.txt") == true)
+                    {
+                        MessageBox.Show("文件内容有误，不是apn指定的文件！将会以head.txt文件为打开文件");
+                        ApnContentXML = System.IO.File.ReadAllText("head.txt");
+                    }
+                    else
+                    {
+                        MessageBox.Show("非指定文件，程序文件head.txt不全，无法正常操作。");
+                        System.Environment.Exit(0);
+                    }
+                    
+                }
+                return true;
+            }
+            return false;
+        }
+        private bool checkApnMncMccSmart(string path,GPRSparam gprs )
+        {
+            LoadApnXML(path);
+            if (ApnContentXML.Contains("mcc=\"" + gprs.Mcc + "\"") == true && ApnContentXML.Contains("mnc=\"" + gprs.Mnc + "\"") == true)
+            {
+                return false;
+            }
 
             return true;
         }
 
-        private void loadFixTxt(string path)
-        {
-            StringBuilder cotent = new StringBuilder();
-            cotent.Append(System.IO.File.ReadAllText("head.txt"));
-            System.IO.File.AppendAllText(path, cotent.ToString());
-        }
-
         private void btnAPNImport_Click(object sender, EventArgs e)
         {
-           
-            listGprs = new List<GPRSparam>();
-            OpenFileDialog ofd = new OpenFileDialog();
-            ofd.Filter = "*.*|*.*";
-            if (ofd.ShowDialog() == DialogResult.OK)
-            {
-                txtAddress.Text = ofd.FileName;
-                Thread th = new Thread(new ParameterizedThreadStart(importAPNExcel));
-                th.Start(ofd.FileName);
-            }
+
         }
 
         private void importAPNExcel(object obj)
@@ -1700,6 +1817,17 @@ namespace GPRSTOOL
             }
 
             MessageBox.Show("已正常打开网络参数表");
+        }
+
+        private void btnImportExcelPath_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "*.*|*.*";
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+
+                txtAddress.Text = ofd.FileName;
+            }
         }
 
 
