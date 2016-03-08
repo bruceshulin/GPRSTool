@@ -10,6 +10,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -48,6 +49,8 @@ namespace GPRSTOOL
             this.Invoke((EventHandler)delegate
             {
                 this.btnImportExcel.Enabled = true;
+                this.btnImportExcel.BackColor = Color.Green;
+                this.btnOutPutExcel.Enabled = true;
             });
         }
 
@@ -310,7 +313,7 @@ namespace GPRSTOOL
                                 //对每一个网络参数进行修正操作
                                 if (listHeader[row - 1].Contains("注：") == true)
                                 {
-                                    //说明到底了
+                                    //说明到底了   1碰到一个问题，还真有人把这个注给删除了，导致程序跳过了原有的数据区域
                                     break;
                                 }
                                 text = revisedValue(text, listHeader[row - 1]);  //数据检查
@@ -1585,23 +1588,24 @@ namespace GPRSTOOL
 
         private void button1_Click(object sender, EventArgs e)
         {
-            string path = "apns-conf-transsion.xml";
+            string path = @"G:\GPRSTool\GPRSTOOL\智能机网络参数文件\apns-conf-transsion.xml";
             if (System.IO.File.Exists(path) == false)
             {
                 return;
             }
             int count = 0;
-            StringBuilder sb = new StringBuilder();
+           
             foreach (GPRSparam item in listGprs)
             {
+                StringBuilder sb = new StringBuilder();
                 GPRSparam tmpitem = item;
                 if (tmpitem.Mcc == "" || tmpitem.Mnc == "" || tmpitem.Name == "")
                 {
                     continue;
                 }
-                if (checkApnMncMccSmart(path, tmpitem) == false)
+               // if (checkApnMncMccSmart(path, tmpitem) == false)
                 {
-                    continue;
+                 //   continue;
                 }
                 count++;
                 checkApnName(ref tmpitem);
@@ -1609,6 +1613,7 @@ namespace GPRSTOOL
                 sb.AppendLine("    <apn carrier=\"" + tmpitem.Name + "\"");
                 sb.AppendLine("        mcc=\"" + tmpitem.Mcc + "\"");
                 sb.AppendLine("        mnc=\"" + tmpitem.Mnc + "\"");
+
                 sb.AppendLine("        apn=\"" + tmpitem.Apn + "\"");
                 sb.AppendLine("        proxy=\"" + tmpitem.Proxy + "\"");
                 sb.AppendLine("        port=\"" + tmpitem.Port + "\"");
@@ -1619,20 +1624,64 @@ namespace GPRSTOOL
                 sb.AppendLine("        authtype=\"" + tmpitem.Authtype + "\"");
                 sb.AppendLine("        preload=\"1\"");
                 sb.AppendLine("    />");
+
+                if (sb.ToString() != "")
+                {
+                    LoadApnXML(path);
+                    string NewApnContent = ApnContentXML;
+                    contentMostPrimitive = ApnContentXML;
+                    string newPath = "apns-conf-transsionNEW.xml";
+                    //这里判断是全新追加，还是更新
+                    if (IsCheckApdOrMod( tmpitem, newPath))
+                    {
+                       
+
+
+                        ////append
+                        //sb.AppendLine("</apns>");
+                        ////替换原始数据到另一个文件中
+                        //NewApnContent = NewApnContent.Replace("</apns>", sb.ToString());
+                        //System.IO.File.AppendAllText(newPath, NewApnContent);
+                    }
+                    else
+                    {
+                        //modifly
+
+                    }
+
+                }
+
             }
-            if (sb.ToString() != "")
-            {
-                sb.AppendLine("</apns>");
-                //替换原始数据到另一个文件中
-                LoadApnXML(path);
-                string NewApnContent = ApnContentXML;
-                NewApnContent = NewApnContent.Replace("</apns>", sb.ToString());
-                string newPath = "apns-conf-transsionNEW.xml";
-                System.IO.File.AppendAllText(newPath, NewApnContent);
-            }
+            System.IO.File.WriteAllText(path.Replace(".xml","1.xml"), contentMostPrimitive);
             MessageBox.Show("程序导出结束 共导入" + count.ToString() + "条");
            
         }
+        string contentMostPrimitive = "";
+        private bool IsCheckApdOrMod( GPRSparam tmpitem, string newPath)
+        {
+
+            //throw new NotImplementedException();
+            string parttn =string.Format("carrier=\"%0\"[\\s]*?mcc=\"%1\"[\\s]*?mnc=\"%2\"",tmpitem.Name,tmpitem.Mcc,tmpitem.Mnc);
+            Match ma = Regex.Match(contentMostPrimitive, parttn, RegexOptions.IgnoreCase);
+            if (ma.Success)
+            {
+                /**
+                * 临时创建初始文件用的方法
+                * **/
+                parttn = "<apn carrier=\"[\\s\\S]*?\"[\\s]*?mcc=\"[\\s\\S]*?\"[\\s]*?mnc=\"[\\s\\S]*?\"[^>]*?>";
+                Match mapn = Regex.Match(contentMostPrimitive, parttn, RegexOptions.IgnoreCase);
+                string value = mapn.Result("$1");
+                contentMostPrimitive = contentMostPrimitive.Replace(value, "");
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+            
+        }
+
+
 
         string SpnConf = "";
         private void checkApnName(ref GPRSparam item)

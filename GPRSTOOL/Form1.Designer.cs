@@ -66,7 +66,7 @@
             this.textBox1.Multiline = true;
             this.textBox1.Name = "textBox1";
             this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.textBox1.Size = new System.Drawing.Size(350, 140);
+            this.textBox1.Size = new System.Drawing.Size(394, 140);
             this.textBox1.TabIndex = 1;
             // 
             // label1
@@ -74,9 +74,9 @@
             this.label1.AutoSize = true;
             this.label1.Location = new System.Drawing.Point(6, 6);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(65, 12);
+            this.label1.Size = new System.Drawing.Size(101, 12);
             this.label1.TabIndex = 2;
-            this.label1.Text = "4 homepage";
+            this.label1.Text = "4 填写：homepage";
             // 
             // label2
             // 
@@ -89,6 +89,7 @@
             // 
             // btnOutPutExcel
             // 
+            this.btnOutPutExcel.Enabled = false;
             this.btnOutPutExcel.Location = new System.Drawing.Point(258, 168);
             this.btnOutPutExcel.Name = "btnOutPutExcel";
             this.btnOutPutExcel.Size = new System.Drawing.Size(98, 36);
@@ -110,7 +111,7 @@
             // 
             this.txtAddress.Location = new System.Drawing.Point(79, 14);
             this.txtAddress.Name = "txtAddress";
-            this.txtAddress.Size = new System.Drawing.Size(142, 21);
+            this.txtAddress.Size = new System.Drawing.Size(189, 21);
             this.txtAddress.TabIndex = 5;
             // 
             // tabControl1
@@ -174,6 +175,7 @@
             this.txtSheetPage.Name = "txtSheetPage";
             this.txtSheetPage.Size = new System.Drawing.Size(100, 21);
             this.txtSheetPage.TabIndex = 7;
+            this.txtSheetPage.Text = "2";
             // 
             // label5
             // 
@@ -189,13 +191,13 @@
             this.label6.AutoSize = true;
             this.label6.Location = new System.Drawing.Point(225, 46);
             this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(89, 12);
+            this.label6.Size = new System.Drawing.Size(77, 12);
             this.label6.TabIndex = 3;
-            this.label6.Text = "每页都用, 分隔";
+            this.label6.Text = "页数用, 分隔";
             // 
             // btnImportExcelPath
             // 
-            this.btnImportExcelPath.Location = new System.Drawing.Point(227, 12);
+            this.btnImportExcelPath.Location = new System.Drawing.Point(274, 12);
             this.btnImportExcelPath.Name = "btnImportExcelPath";
             this.btnImportExcelPath.Size = new System.Drawing.Size(32, 23);
             this.btnImportExcelPath.TabIndex = 8;
@@ -218,7 +220,7 @@
             this.Controls.Add(this.btnImportExcel);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
-            this.Text = "网络参数TOOL";
+            this.Text = "网络参数TOOL   最后修改日期：2016-3-4";
             this.tabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.tabPage1.PerformLayout();
