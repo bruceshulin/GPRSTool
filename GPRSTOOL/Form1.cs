@@ -158,6 +158,7 @@ namespace GPRSTOOL
                         //针对印度版本里合并列的情况需要设置一个跳过列变量
                         int jumpcol = 0;
                         int mmsjumpcol = 0;
+                        int countapntype = 0;
                         //遍历每一列
                         for (int col = colStart + off; col <= colEnd; col++)
                         {
@@ -311,10 +312,18 @@ namespace GPRSTOOL
                                 //end 多mms多mnc
                                 // dictHeadervalue[col] = text;         //标题，值 不用标题了可以做判断
                                 //对每一个网络参数进行修正操作
-                                if (listHeader[row - 1].Contains("注：") == true)
+                                if (listHeader[row - 1].Contains("APN TYPE") == true)
                                 {
                                     //说明到底了   1碰到一个问题，还真有人把这个注给删除了，导致程序跳过了原有的数据区域
-                                    break;
+                                    if (countapntype == 0)
+                                    {
+                                        countapntype++;
+                                    }
+                                    else
+                                    { 
+                                        break; 
+                                    }
+                                    
                                 }
                                 text = revisedValue(text, listHeader[row - 1]);  //数据检查
 
