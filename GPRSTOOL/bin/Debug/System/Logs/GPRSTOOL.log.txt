@@ -434,3 +434,17 @@
 2016-03-08 23:28:50,141 [10] INFO  System.Object [(null)] - 加载完文件时间: 54
 2016-03-08 23:28:50,360 [10] INFO  System.Object [(null)] - 到打开表时间: 332
 2016-03-08 23:28:55,851 [10] INFO  System.Object [(null)] - 总处理行数: 53
+2016-03-10 13:59:13,362 [10] INFO  System.Object [(null)] - 加载完文件时间: 57
+2016-03-10 13:59:13,629 [10] INFO  System.Object [(null)] - 到打开表时间: 436
+2016-03-10 14:00:41,355 [10] INFO  System.Object [(null)] - 总处理行数: 53
+2016-03-10 14:10:32,070 [10] INFO  System.Object [(null)] - 加载完文件时间: 41
+2016-03-10 14:10:32,324 [10] INFO  System.Object [(null)] - 到打开表时间: 343
+2016-03-10 14:10:34,950 [10] INFO  System.Object [(null)] - 总处理行数: 53
+2016-03-10 14:11:52,792 [11] INFO  System.Object [(null)] - 加载完文件时间: 43
+2016-03-10 14:11:53,029 [11] INFO  System.Object [(null)] - 到打开表时间: 330
+2016-03-10 14:17:06,887 [6] INFO  System.Object [(null)] - 加载完文件时间: 41
+2016-03-10 14:17:07,143 [6] INFO  System.Object [(null)] - 到打开表时间: 347
+2016-03-10 14:18:02,724 [6] INFO  System.Object [(null)] - 总处理行数: 53
+2016-03-10 14:24:59,598 [10] INFO  System.Object [(null)] - 加载完文件时间: 41
+2016-03-10 14:24:59,851 [10] INFO  System.Object [(null)] - 到打开表时间: 343
+2016-03-10 14:25:04,880 [10] INFO  System.Object [(null)] - 总处理行数: 53

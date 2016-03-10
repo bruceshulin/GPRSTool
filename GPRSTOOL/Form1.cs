@@ -45,19 +45,20 @@ namespace GPRSTOOL
         private void importExcel(object obj)
         {
             string filename = (string)obj;
-            EpplusExcel2007Read(filename);
+            bool isimport = EpplusExcel2007Read(filename);
             this.Invoke((EventHandler)delegate
             {
                 this.btnImportExcel.Enabled = true;
                 this.btnImportExcel.BackColor = Color.Green;
-                this.btnOutPutExcel.Enabled = true;
+
+                this.btnOutPutExcel.Enabled = isimport;
             });
         }
 
         List<GPRSparam> listGprs = new List<GPRSparam>();
 
         string pretmpmms = "mms_";//短信前缀
-        private void EpplusExcel2007Read(string path)
+        private bool EpplusExcel2007Read(string path)
         {
             try
             {
@@ -163,7 +164,7 @@ namespace GPRSTOOL
                         for (int col = colStart + off; col <= colEnd; col++)
                         {
                             count++;
-
+                            countapntype = 0;   //列退出标志位清0
                             //对印度版本的网络参数增加两个临时变量,重复用|号分隔
                             string repatemcc = "";
                             string repatemnc = "";
@@ -183,12 +184,9 @@ namespace GPRSTOOL
                                 jumpcol = 0;
                                 
                             }
-
-                            
                             //遍历每一列的单元格
                             for (int row = rowStart; row <= rowEnd; row++)
                             {
-                                
                                 if (listHeader[row - 1] == pretmpmms + "MMS" && mmsjumpcol > 0) //为了把合并的MMS跳过
                                 {
                                     break;
@@ -393,10 +391,11 @@ namespace GPRSTOOL
                 Console.WriteLine("加载excel出错了　" + err.Message);
                 MessageBox.Show("加载excel出错了　" + err.Message+" 如找不到原因，可致邮452113521@qq.com");
                 Lv.Log.Write("加载excel出错了　 " + err.Message, Lv.Log.MessageType.Error);
-                return;
+                return false;
             }
 
             MessageBox.Show("已正常打开网络参数表");
+            return true;
         }
         /// <summary>
         /// 对保存的GPRS进行判断，然后保存
