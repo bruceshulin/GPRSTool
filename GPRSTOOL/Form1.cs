@@ -75,26 +75,17 @@ namespace GPRSTOOL
                     Console.WriteLine("加载完文件时间:" + time);
                     Lv.Log.Write("加载完文件时间: " + time, Lv.Log.MessageType.Info);
                     List<int> listCountPage = new List<int>();
-                    SheetCount = SheetCount.Replace("，", ",");
-                    string[] sheepsplit = SheetCount.Split(',');
-                    foreach (string item in sheepsplit)
-                    {
-                        int temppage=0;
-                        int.TryParse(item, out temppage);
-                        listCountPage.Add(temppage);
-                    }
-                    if (listCountPage.Count == 0)
-                    {
-                        listCountPage.Add(2);
-                    }
+                    listCountPage = ReadOpenTablePage();
+
                     int vSheetCount = package.Workbook.Worksheets.Count; //获取总Sheet页
 
                     for (int pagei = 1; pagei <= vSheetCount; pagei++)
                     {
                         if (listCountPage.IndexOf(pagei) == -1)
                         {
-                            continue;
+                            continue;   //如果当前页不在打开列表里就跳过
                         }
+
                         ExcelWorksheet worksheet = package.Workbook.Worksheets[pagei];//选定 指定页
                         time = watch.ElapsedMilliseconds.ToString();
                         Console.WriteLine("到打开表时间:" + time);
@@ -110,39 +101,12 @@ namespace GPRSTOOL
                         //1　每个表的样式都不一样，如果统一起来处理的话不好处理，怎么处理呢？
                         //传每个表的类型过来
                         //保存表头信息
+
                         Dictionary<string, int> dictHeader = new Dictionary<string, int>();
                         List<string> listHeader = new List<string>();
-                        int off = 0;    //起始行偏移量
-                        bool isMMS = false;
-                        //将每列标题添加到字典中
-                        for (int i = colStart; i <= colEnd; i++)
-                        {
-                            if (worksheet.Cells[i,rowStart ].Value == null)
-                            {
-                                continue;
-                            }
-                            string titlestr = worksheet.Cells[ i , rowStart ].Value.ToString();
-                            titlestr = titlestr.Trim();
-                            if (titlestr == null || titlestr == "" )
-                            {
-                                continue;
-                            }
-                            if (titlestr == "MMS")
-                            {
-                                isMMS = true;
-                            }
-                            if (isMMS == false)
-                            {
-                                dictHeader.Add(titlestr, i);
-                                listHeader.Add(titlestr);
-                            }
-                            else
-                            {
-                                dictHeader.Add(pretmpmms + titlestr, i);
-                                listHeader.Add(pretmpmms + titlestr);
-                            }
-                        }
-                        off += 1;
+
+                        AddListHeaderData(colStart,colEnd,rowStart,worksheet, ref dictHeader,ref listHeader);
+                        
                         int count = 0;
                         if (System.IO.File.Exists("test.txt"))
                         {
@@ -153,7 +117,8 @@ namespace GPRSTOOL
                         {
                             System.IO.File.Delete("mmstest.txt");
                         }
-                        
+                        int off = 1; //标题读了一行,所以去掉
+
                         //针对国家里面合并列的情况需要临时变量保存
                         string country = "";
                         //针对印度版本里合并列的情况需要设置一个跳过列变量
@@ -179,6 +144,7 @@ namespace GPRSTOOL
 
                             if (jumpcol > 0)
                             {
+                                //当碰到合并列的数据,会一次性把后面的数据都读取出来,所以这里就需要跳过那些已合并的列
                                 col += jumpcol; //跳过合并列
                                 count += jumpcol;
                                 jumpcol = 0;
@@ -187,153 +153,235 @@ namespace GPRSTOOL
                             //遍历每一列的单元格
                             for (int row = rowStart; row <= rowEnd; row++)
                             {
-                                if (listHeader[row - 1] == pretmpmms + "MMS" && mmsjumpcol > 0) //为了把合并的MMS跳过
-                                {
-                                    break;
-                                }
-
-                                string text = "";
-                                //得到单元格信息
-                                ExcelRange cell = null;
                                 try
                                 {
-                                    cell = worksheet.Cells[row, col];
-                                    text = GetMegerValue(worksheet, row, col);
-
-
-                                }
-                                catch (Exception err)
-                                {
-                                    text = "";
-                                    Console.WriteLine("" + err.Message);
-                                    Lv.Log.Write("提取单元数据出错　row" + col.ToString() + " col" + row.ToString() + err.Message, Lv.Log.MessageType.Error);
-                                }
-
-                                if (listHeader[row - 1] == "MCC")
-                                {
-                                    //mcc
-                                    //判断上一行是否合并,如果合并合并了多少行.
-                                    string range = worksheet.MergedCells[row - 1, col];
-
-                                    if (range != null && range.Contains(":"))    //说明合并了多列
+                                    if (listHeader[row - 1] == pretmpmms + "MMS" && mmsjumpcol > 0) //为了把合并的MMS跳过
                                     {
-                                        jumpcol = GetMegerColSum(range);
+                                        break;
                                     }
-                                    if (jumpcol > 0)
+
+                                    string text = "";
+                                    //得到单元格信息
+                                    ExcelRange cell = null;
+                                    try
                                     {
-                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
-                                        //mcc
-                                        repatemcc = text;
+                                        //从EXCEL表取数据
+                                        cell = worksheet.Cells[row, col];
+                                        text = GetMegerValue(worksheet, row, col);
+                                    }
+                                    catch (Exception err)
+                                    {
                                         text = "";
+                                        string error = string.Format("提取单元数据出错 列{0} 行{1}", count, row);
+                                        Console.WriteLine(error);
+                                        Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                        throw new Exception(error);
                                     }
-                                    else
+                                    try
                                     {
-                                        string tmpmncvalue = GetMegerValue(worksheet, row + 1, col); //如果mnc里面包含多个，那么这个时候需要记录mcc这样才能进行重复计算
-                                        if (tmpmncvalue.Contains(",") == true)
+                                        //MCC取数据异常
+                                        if (listHeader[row - 1] == "MCC")
                                         {
-                                            repatemcc = text;
+                                            //mcc
+                                            //判断上一行是否合并,如果合并合并了多少行.
+                                                //取得PORT那一行是否合并
+                                            int gettempmergedrow = 0;
+                                            if (listHeader.IndexOf("NAME") > -1)
+                                            {
+                                                gettempmergedrow = listHeader.IndexOf("NAME");
+                                            }
+                                            string range = worksheet.MergedCells[gettempmergedrow+1, col];
+
+                                            if (range != null && range.Contains(":"))    //说明合并了多列
+                                            {
+                                                jumpcol = GetMegerColSum(range);
+                                            }
+                                            if (jumpcol > 0)
+                                            {
+                                                text = GetMccMncValue(worksheet, row, col, text, jumpcol);
+                                                //mcc
+                                                repatemcc = text;
+                                                text = "";
+                                            }
+                                            else
+                                            {
+                                                string tmpmncvalue = GetMegerValue(worksheet, row + 1, col); //如果mnc里面包含多个，那么这个时候需要记录mcc这样才能进行重复计算
+                                                if (tmpmncvalue.Contains(",") == true)
+                                                {
+                                                    repatemcc = text;
+                                                }
+                                                //其他情况不处理
+                                            }
                                         }
-                                        //其他情况不处理
                                     }
-                                }
-                                if (listHeader[row - 1] == "MNC")
-                                {
-                                    if (jumpcol > 0)
+                                    catch (Exception)
                                     {
-                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
-                                        repatemnc = text;
-                                        text = "";
+                                        //MCC取数据异常
+                                        string error = string.Format("MCC取数据异常 列{0} 行{1}", count, row);
+                                        Console.WriteLine(error);
+                                        Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                        throw new Exception(error);
                                     }
-                                    else
+                                    try
                                     {
-                                        if (text.Contains(",") == true)
-                                        {
-                                            repatemnc = text;
-                                            text = "";
-                                        }
-                                        //其他情况不处理
-                                    }
-                                    
-                                }
-                                if (listHeader[row - 1] == pretmpmms + "MCC")
-                                {
-                                    //mcc
-                                    //判断上一行是否合并,如果合并合并了多少行.
-                                    string range = worksheet.MergedCells[row - 1, col];
 
-                                    if (range != null && range.Contains(":"))    //说明合并了多列
-                                    {
-                                        mmsjumpcol = GetMegerColSum(range);
-                                    }
-                                    if (mmsjumpcol > 0)
-                                    {
-                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
-                                        mmsrepatemcc = text;
-                                        text = "";
-                                        if (mmsjumpcol == jumpcol)
+                                        if (listHeader[row - 1] == "MNC")
                                         {
-                                            mmsjumpcol = 0;
+                                            if (jumpcol > 0)
+                                            {
+                                                text = GetMccMncValue(worksheet, row, col, text, jumpcol);
+                                                repatemnc = text;
+                                                text = "";
+                                            }
+                                            else
+                                            {
+                                                if (text.Contains(",") == true)
+                                                {
+                                                    repatemnc = text;
+                                                    text = "";
+                                                }
+                                                //其他情况不处理
+                                            }
+
+                                        }
+                                    }
+                                    catch (Exception)
+                                    {
+
+                                        //MNC取数据异常
+                                        string error = string.Format("MNC取数据异常 列{0} 行{1}", count, row);
+                                        Console.WriteLine(error);
+                                        Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                        throw new Exception(error);
+                                    }
+                                    try
+                                    {
+                                        if (listHeader[row - 1] == pretmpmms + "MCC")
+                                        {
+                                            //mcc
+                                            //判断上一行是否合并,如果合并合并了多少行.
+                                            int gettempmergedrow = 0;
+                                            if (listHeader.IndexOf("mms_NAME") > -1)
+                                            {
+                                                gettempmergedrow = listHeader.IndexOf("mms_NAME");
+                                            }
+                                            string range = worksheet.MergedCells[gettempmergedrow + 1, col];
+                                            //string range = worksheet.MergedCells[row - 1, col];
+
+                                            if (range != null && range.Contains(":"))    //说明合并了多列
+                                            {
+                                                mmsjumpcol = GetMegerColSum(range);
+                                            }
+                                            if (mmsjumpcol > 0)
+                                            {
+                                                text = GetMccMncValue(worksheet, row, col, text, mmsjumpcol);
+                                                mmsrepatemcc = text;
+                                                text = "";
+                                                if (mmsjumpcol == jumpcol)
+                                                {
+                                                    mmsjumpcol = 0;
+                                                }
+                                                else
+                                                {
+                                                    mmsjumpcol += 1;        //本次加1，为了第二列的时候能跳过
+                                                }
+                                            }
+                                            else
+                                            {
+                                                string tmpmncvalue = GetMegerValue(worksheet, row + 1, col); //如果mnc里面包含多个，那么这个时候需要记录mcc这样才能进行重复计算
+                                                if (tmpmncvalue.Contains(",") == true)
+                                                {
+                                                    mmsrepatemcc = text;
+                                                }
+                                                //其他情况不处理
+                                            }
+                                        }
+
+                                    }
+                                    catch (Exception)
+                                    {
+                                        // MMS_MCC取数据异常
+                                        string error = string.Format("MMS_MCC取数据异常 列{0} 行{1}", count, row);
+                                        Console.WriteLine(error);
+                                        Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                        throw new Exception(error);
+                                    }
+                                    try
+                                    {
+                                        if (listHeader[row - 1] == pretmpmms + "MNC")
+                                        {
+                                            if (jumpcol > 0 || mmsjumpcol > 0)
+                                            {
+                                                text = GetMccMncValue(worksheet, row, col, text, jumpcol);
+                                                mmsrepatemnc = text;
+                                                text = "";
+                                            }
+                                            else
+                                            {
+                                                if (text.Contains(",") == true)
+                                                {
+                                                    mmsrepatemnc = text;
+                                                    text = "";
+                                                }
+                                                //其他情况不处理
+                                            }
+                                        }
+                                    }
+                                    catch (Exception)
+                                    {
+
+                                        // MMS_MNC取数据异常
+                                        string error = string.Format("MMS_MNC取数据异常 列{0} 行{1}", count,row);
+                                        Console.WriteLine(error);
+                                        Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                        throw new Exception(error);
+                                    }
+                                    //end 多mms多mnc
+                                    // dictHeadervalue[col] = text;         //标题，值 不用标题了可以做判断
+                                    //对每一个网络参数进行修正操作
+
+                                    if (listHeader[row - 1].Contains("APN TYPE") == true)
+                                    {
+                                        //说明到底了   1碰到一个问题，还真有人把这个注给删除了，导致程序跳过了原有的数据区域
+                                        if (countapntype == 0)
+                                        {
+                                            countapntype++;
                                         }
                                         else
                                         {
-                                            mmsjumpcol += 1;        //本次加1，为了第二列的时候能跳过
+                                            break;
                                         }
-                                    }
-                                    else
-                                    {
-                                        string tmpmncvalue = GetMegerValue(worksheet, row + 1, col); //如果mnc里面包含多个，那么这个时候需要记录mcc这样才能进行重复计算
-                                        if (tmpmncvalue.Contains(",") == true)
-                                        {
-                                            mmsrepatemcc = text;
-                                        }
-                                        //其他情况不处理
-                                    }
-                                }
-                                if (listHeader[row - 1] == pretmpmms + "MNC")
-                                {
-                                    if (jumpcol > 0 || mmsjumpcol >0)
-                                    {
-                                        text = GetMccMncValue(worksheet, row, col, text, jumpcol);
-                                        mmsrepatemnc = text;
-                                        text = "";
-                                    }
-                                    else
-                                    {
-                                        if (text.Contains(",") == true)
-                                        {
-                                            mmsrepatemnc = text;
-                                            text = "";
-                                        }
-                                        //其他情况不处理
-                                    }
-                                }
-                                //end 多mms多mnc
-                                // dictHeadervalue[col] = text;         //标题，值 不用标题了可以做判断
-                                //对每一个网络参数进行修正操作
-                                if (listHeader[row - 1].Contains("APN TYPE") == true)
-                                {
-                                    //说明到底了   1碰到一个问题，还真有人把这个注给删除了，导致程序跳过了原有的数据区域
-                                    if (countapntype == 0)
-                                    {
-                                        countapntype++;
-                                    }
-                                    else
-                                    { 
-                                        break; 
-                                    }
-                                    
-                                }
-                                text = revisedValue(text, listHeader[row - 1]);  //数据检查
 
+                                    }
+                                    text = revisedValue(text, listHeader[row - 1]);  //数据检查
 
-                                if (listHeader.Count - 1 > row)
-                                {
-                                    dictHeadervalue.Add(listHeader[row - 1], text);
-                                    Console.WriteLine(listHeader[row - 1] + "     " + row.ToString());
+                                    try
+                                    {
+                                        //数据列表保存
+                                        if (listHeader.Count - 1 > row)
+                                        {
+                                            dictHeadervalue.Add(listHeader[row - 1], text);
+                                            Console.WriteLine(listHeader[row - 1] + "     " + row.ToString());
+                                        }
+                                        else
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    catch (Exception)
+                                    {
+                                        string error = string.Format("dictHeadervalue.Add数据列表保存出错 列{0} 行{1}", count, row);
+                                        Console.WriteLine(error);
+                                        Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                        throw new Exception(error);
+                                    }
                                 }
-                                else
+                                catch (Exception)
                                 {
-                                    break;
+                                    string error = string.Format("提取数据循环出错 列{0} 行{1}", count, row);
+                                    Console.WriteLine(error);
+                                    Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                    throw new Exception(error);
                                 }
                             }
                             if (mmsjumpcol > 0)
@@ -342,43 +390,62 @@ namespace GPRSTOOL
                             }
                             //前面对列的记录 同时还要记算出他合并了多少行，然后对其他行进行数据提取操作
                             //从目前就只有mcc和mnc有需要提取，只对这两个进行操作
+                            try
+                            {
+                                foreach (var item in dictHeadervalue)
+                                {
+                                    setValue(ref gprs, ref mms, item.Key, item.Value);
+                                }
+                            }
+                            catch (Exception)
+                            {
 
+                                string error = string.Format("setValue保存数据出错 列{0}", count);
+                                Console.WriteLine(error);
+                                Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                throw new Exception(error);
+                            }
+                            try
+                            {
+                                //设置proxy 为空用mmsproxy
+                                if (gprs.Proxy == "0.0.0.0" && gprs.Mmsproxy != "0.0.0.0")
+                                {
+                                    gprs.Proxy = gprs.Mmsproxy;
+                                    gprs.Port = gprs.Mmsport;
+                                }
+                                //设置MMSC 为空用homepage
+                                if (gprs.Homepage == "" && gprs.Mmsc != "")
+                                {
+                                    gprs.Homepage = gprs.Mmsc;
+                                }
+                                //印度多mcc mnc进入
+                                if (repatemcc != "" || repatemnc != "")
+                                {
+                                    //SaveRecode(repatemcc, repatemnc, mmsrepatemcc, mmsrepatemnc, gprs, mms);
+                                    SaveRecodeGprs(repatemcc, repatemnc, gprs);
+                                }
+                                else
+                                {
+                                    GprsAdd(gprs);
+                                }
+                                if (mmsrepatemcc != "" || mmsrepatemnc != "")
+                                {
+                                    SaveRecodeGprs(mmsrepatemcc, mmsrepatemnc, mms);
+                                }
+                                else
+                                {
+                                    //保存 当前列的gprs mms
+                                    //ConvertGprs(dictHeadervalue,dictHeader);
 
-                            foreach (var item in dictHeadervalue)
-                            {
-                                setValue(ref gprs, ref mms, item.Key, item.Value);
+                                    GprsAdd(mms);
+                                }
                             }
-                            //设置proxy 为空用mmsproxy
-                            if (gprs.Proxy ==  "0.0.0.0" && gprs.Mmsproxy != "0.0.0.0")
+                            catch (Exception)
                             {
-                                gprs.Proxy = gprs.Mmsproxy;
-                                gprs.Port = gprs.Mmsport;
-                            }
-                            //设置MMSC 为空用homepage
-                            if (gprs.Homepage == "" && gprs.Mmsc != "")
-                            {
-                                gprs.Homepage = gprs.Mmsc;
-                            }
-                            //印度多mcc mnc进入
-                            if (repatemcc != "" || repatemnc != "")
-                            {
-                                //SaveRecode(repatemcc, repatemnc, mmsrepatemcc, mmsrepatemnc, gprs, mms);
-                                SaveRecodeGprs(repatemcc, repatemnc, gprs);
-                            }
-                            else
-                            {
-                               GprsAdd(gprs);
-                            }
-                            if ( mmsrepatemcc != "" || mmsrepatemnc != "")
-                            {
-                                SaveRecodeGprs(mmsrepatemcc, mmsrepatemnc, mms);
-                            }
-                            else
-                            {
-                                //保存 当前列的gprs mms
-                                //ConvertGprs(dictHeadervalue,dictHeader);
-                              
-                                GprsAdd(mms);
+                                string error = string.Format("GprsAdd保存数据出错,行数:{0}", count);
+                                Console.WriteLine(error);
+                                Lv.Log.Write(error, Lv.Log.MessageType.Error);
+                                throw new Exception(error);
                             }
                         }
                         Console.WriteLine("总处理列数:" + count);
@@ -396,6 +463,62 @@ namespace GPRSTOOL
 
             MessageBox.Show("已正常打开网络参数表");
             return true;
+        }
+
+        private void AddListHeaderData(int colStart, int colEnd, int rowStart, ExcelWorksheet worksheet, ref Dictionary<string, int> dictHeader, ref List<string> listHeader)
+        {
+            int off = 0;    //起始行偏移量
+            bool isMMS = false;
+            //将每列标题添加到字典中
+            for (int i = colStart; i <= colEnd; i++)
+            {
+                if (worksheet.Cells[i, rowStart].Value == null)
+                {
+                    continue;
+                }
+                string titlestr = worksheet.Cells[i, rowStart].Value.ToString();
+                titlestr = titlestr.Trim();
+                if (titlestr == null || titlestr == "")
+                {
+                    continue;
+                }
+                if (titlestr == "MMS")
+                {
+                    isMMS = true;
+                }
+                if (isMMS == false)
+                {
+                    dictHeader.Add(titlestr, i);
+                    listHeader.Add(titlestr);
+                }
+                else
+                {
+                    dictHeader.Add(pretmpmms + titlestr, i);
+                    listHeader.Add(pretmpmms + titlestr);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 取得要打开EXCEL表的页
+        /// </summary>
+        /// <returns></returns>
+        private List<int> ReadOpenTablePage()
+        {
+            List<int> listCountPage = new List<int>();
+            SheetCount = SheetCount.Replace("，", ",");
+            string[] sheepsplit = SheetCount.Split(',');
+            foreach (string item in sheepsplit)
+            {
+                int temppage = 0;
+                int.TryParse(item, out temppage);
+                listCountPage.Add(temppage);
+            }
+            if (listCountPage.Count == 0)
+            {
+                listCountPage.Add(2);
+            }
+            return listCountPage;
         }
         /// <summary>
         /// 对保存的GPRS进行判断，然后保存
@@ -438,10 +561,12 @@ namespace GPRSTOOL
                 for (int i = 1; i < jumpcol + 1; i++)
                 {
                     string tmptext = GetMegerValue(worksheet, row, col + i);
-                    if (tmptext != listtext[i - 1])
-                    {
-                        text += "|" + tmptext;
-                    }
+                   
+                        if (tmptext != listtext[i - 1])
+                        {
+                            text += "|" + tmptext;
+                        }
+                    
                 }
             }
             else
@@ -462,14 +587,30 @@ namespace GPRSTOOL
             string[] mncsplit = repatemnc.Split('|');
             for (int i = 0; i < mccsplit.Length; i++)
             {
-                string[] mncsig = mncsplit[i].Split(',');
-                for (int j = 0; j < mncsig.Length; j++)
+                try
                 {
-                    GPRSparam tmpgprs = (GPRSparam)gprs.Clone();
-                    tmpgprs.Mcc = mccsplit[i];
-                    tmpgprs.Mnc = mncsig[j];
-                    //listGprs.Add(tmpgprs);
-                    GprsAdd(tmpgprs);
+                    string[] mncsig = mncsplit[i].Split(',');
+                    for (int j = 0; j < mncsig.Length; j++)
+                    {
+                        try
+                        {
+                            GPRSparam tmpgprs = (GPRSparam)gprs.Clone();
+                            tmpgprs.Mcc = mccsplit[i];
+                            tmpgprs.Mnc = mncsig[j];
+                            //listGprs.Add(tmpgprs);
+                            GprsAdd(tmpgprs);
+                        }
+                        catch (Exception)
+                        {
+                            Console.WriteLine("保存数据出错");
+                            throw;
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    Console.WriteLine("保存数据出错");
+                    throw;
                 }
             }
         }
@@ -935,6 +1076,9 @@ namespace GPRSTOOL
             }
             foreach (string url in urls)
             {
+                string path = "";
+#if false
+                //这个是提取网址,然后根据项目名来保存            但由于后期网址里没有项目名,所以不用了
                 string M = System.Text.RegularExpressions.Regex.Match(url, @"&M=(?<m>[\w]*)", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Groups["m"].Value;
                 string Z = System.Text.RegularExpressions.Regex.Match(url, @"&Z=(?<z>[\w]*)", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Groups["z"].Value;
                 string path = Z + M + ".xls";
@@ -943,7 +1087,8 @@ namespace GPRSTOOL
                     path = "test";
                 }
                 System.IO.FileInfo file = new System.IO.FileInfo((string)path);
-
+#endif
+                path = (System.DateTime.Now.Date.ToString() )+".xls";
                 try
                 {
                     DataTable dt = new DataTable();
