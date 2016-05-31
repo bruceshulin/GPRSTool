@@ -48,8 +48,16 @@ namespace GPRSTOOL
             bool isimport = EpplusExcel2007Read(filename);
             this.Invoke((EventHandler)delegate
             {
+
                 this.btnImportExcel.Enabled = true;
-                this.btnImportExcel.BackColor = Color.Green;
+                if (isimport)
+                {
+                    this.btnImportExcel.BackColor = Color.Green;
+                }
+                else
+                {
+                    this.btnImportExcel.BackColor = Color.Yellow;
+                }
 
                 this.btnOutPutExcel.Enabled = isimport;
             });
@@ -279,7 +287,7 @@ namespace GPRSTOOL
                                                 text = "";
                                                 if (mmsjumpcol == jumpcol)
                                                 {
-                                                    mmsjumpcol = 0;
+                                                    mmsjumpcol = 0;             //说明上下都是合并列的
                                                 }
                                                 else
                                                 {
@@ -1074,8 +1082,10 @@ namespace GPRSTOOL
             {
                 urls[i] = urls[i].Replace('\r', ' ').Trim();
             }
+            int fileindex = 0;
             foreach (string url in urls)
             {
+                fileindex++;
                 string path = "";
 #if false
                 //这个是提取网址,然后根据项目名来保存            但由于后期网址里没有项目名,所以不用了
@@ -1088,7 +1098,7 @@ namespace GPRSTOOL
                 }
                 System.IO.FileInfo file = new System.IO.FileInfo((string)path);
 #endif
-                path = (System.DateTime.Now.Date.ToString() )+".xls";
+                path = "文件" + fileindex.ToString() + ".xls";
                 try
                 {
                     DataTable dt = new DataTable();
@@ -1747,16 +1757,19 @@ namespace GPRSTOOL
                 return;
             }
             int count = 0;
-           
+
+           LoadApnXML(path);
+            //只对APN时行操作,最后成生一个ANP.XML的文件出来
             foreach (GPRSparam item in listGprs)
             {
+                
                 StringBuilder sb = new StringBuilder();
                 GPRSparam tmpitem = item;
                 if (tmpitem.Mcc == "" || tmpitem.Mnc == "" || tmpitem.Name == "")
                 {
                     continue;
                 }
-               // if (checkApnMncMccSmart(path, tmpitem) == false)
+                //if (checkApnMncMccSmart(path, tmpitem) == false)
                 {
                  //   continue;
                 }
@@ -1780,23 +1793,23 @@ namespace GPRSTOOL
 
                 if (sb.ToString() != "")
                 {
-                    LoadApnXML(path);
-                    string NewApnContent = ApnContentXML;
-                    contentMostPrimitive = ApnContentXML;
-                    string newPath = "apns-conf-transsionNEW.xml";
+                    
+                    
+                    
                     //这里判断是全新追加，还是更新
-                    if (IsCheckApdOrMod( tmpitem, newPath))
+                   // if (IsCheckApdOrMod( tmpitem, newPath))
                     {
                        
 
 
                         ////append
-                        //sb.AppendLine("</apns>");
+                        sb.AppendLine("</apns>");
                         ////替换原始数据到另一个文件中
-                        //NewApnContent = NewApnContent.Replace("</apns>", sb.ToString());
-                        //System.IO.File.AppendAllText(newPath, NewApnContent);
+                        ApnContentXML = ApnContentXML.Replace("</apns>", sb.ToString());
+                       // System.IO.File.AppendAllText(newPath, NewApnContent);
+                        contentMostPrimitive = ApnContentXML;
                     }
-                    else
+                  //  else
                     {
                         //modifly
 
@@ -1805,7 +1818,9 @@ namespace GPRSTOOL
                 }
 
             }
-            System.IO.File.WriteAllText(path.Replace(".xml","1.xml"), contentMostPrimitive);
+            string newPath = "apns-conf-transsionNEW.xml";
+            System.IO.File.AppendAllText(newPath, ApnContentXML);
+            //System.IO.File.WriteAllText(path.Replace(".xml","1.xml"), contentMostPrimitive);
             MessageBox.Show("程序导出结束 共导入" + count.ToString() + "条");
            
         }
@@ -1866,7 +1881,7 @@ namespace GPRSTOOL
         {
             if (ApnContentXML == "")
             {
-                ApnContentXML = System.IO.File.ReadAllText(path);
+               // ApnContentXML = System.IO.File.ReadAllText(path);
                 if (ApnContentXML.Contains("/apns>") == false)
                 {
 

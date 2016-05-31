@@ -220,7 +220,7 @@
             this.Controls.Add(this.btnImportExcel);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
-            this.Text = "网络参数TOOL   最后修改日期：2016-3-10";
+            this.Text = "网络参数TOOL   最后修改日期：2016-5-11";
             this.tabControl1.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.tabPage1.PerformLayout();
